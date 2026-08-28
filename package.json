@@ -1,0 +1,33 @@
+{
+  "name": "cc-waste",
+  "version": "0.1.0",
+  "description": "Scans your local Claude Code session logs and generates an HTML report of token usage and likely token waste. 100% local, no network calls, no dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "author": "slow.wave",
+  "funding": {
+    "type": "ko-fi",
+    "url": "https://ko-fi.com/slowwave"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yoodongdong/cc-waste.git"
+  },
+  "homepage": "https://github.com/yoodongdong/cc-waste#readme",
+  "bugs": {
+    "url": "https://github.com/yoodongdong/cc-waste/issues"
+  },
+  "keywords": ["claude", "claude-code", "anthropic", "token", "usage", "cost", "audit"],
+  "bin": {
+    "cc-waste": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

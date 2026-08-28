@@ -1,0 +1,7 @@
+node_modules/
+
+# Generated reports (default output of running the CLI here)
+/cc-waste-report.html
+/cc-waste-report.json
+/*-report.html
+/*-report.json
