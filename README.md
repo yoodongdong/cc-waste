@@ -120,6 +120,21 @@ reported like any other finding, but `--fix` skips it and leaves it alone.
 
 No dependencies beyond Node's built-in modules (`node >= 18`).
 
+## Changelog
+
+- **0.1.3** — `--fix` now never disables a skill referenced by a Claude Code
+  hook (e.g. a Stop hook shipped by the skill itself) — moving such a folder
+  broke the hook even though nothing was deleted. Protected skills are still
+  reported, just badged "보호됨 (hook 연결)" instead of being touched.
+- **0.1.2** — Long tables (waste findings, skills audit, projects) collapse
+  to 10 rows with a "더보기" button to expand the rest, instead of either
+  dumping everything or silently truncating with a "see `--json`" footnote.
+- **0.1.1** — Fixed a Windows-only crash: dynamic `import()` of an OS-native
+  path (backslash-separated on Windows) isn't a valid ESM specifier. Switched
+  to plain relative imports and `pathToFileURL()` for the report-opening URL.
+- **0.1.0** — Initial release: token usage/cost report, waste-pattern
+  detection, and the unused-skill audit with `--fix`.
+
 ## Support
 
 If this saved you some tokens, you can buy the author a coffee:
