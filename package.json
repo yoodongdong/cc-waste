@@ -1,6 +1,6 @@
 {
   "name": "cc-waste",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Scans your local Claude Code session logs and generates an HTML report of token usage and likely token waste. 100% local, no network calls, no dependencies.",
   "type": "module",
   "license": "MIT",

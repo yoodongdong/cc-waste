@@ -7,8 +7,7 @@ const FINDING_LABELS = {
   'rarely-used-skill': { label: '거의 사용 안 하는 스킬', hint: '호출 빈도가 매우 낮습니다 — 카탈로그 유지 비용 대비 활용도가 낮습니다.' },
 };
 
-const MAX_FINDINGS_SHOWN = 60;
-const MAX_TABLE_ROWS = 20;
+const VISIBLE_ROWS = 10;
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
@@ -46,6 +45,23 @@ function fmtDate(iso) {
 
 function shortId(id) {
   return id ? String(id).slice(0, 8) : '—';
+}
+
+// Collapses a long row list down to VISIBLE_ROWS with a "N개 더보기" toggle
+// row that expands the rest client-side (see ccWasteToggleMore in the page
+// script) — avoids either dumping everything (endless scroll) or silently
+// hiding data behind a "see --json" footnote.
+function paginateRows(rows, colSpan) {
+  if (rows.length <= VISIBLE_ROWS) return rows.join('');
+  const visible = rows.slice(0, VISIBLE_ROWS).join('');
+  const hiddenCount = rows.length - VISIBLE_ROWS;
+  const hidden = rows
+    .slice(VISIBLE_ROWS)
+    .map((r) => r.replace('<tr>', '<tr class="cc-more-row" style="display:none">'))
+    .join('');
+  const label = `${hiddenCount}개 더보기`;
+  const toggleRow = `<tr class="cc-more-toggle-row"><td colspan="${colSpan}" class="more-cell"><button type="button" class="more-btn" data-label="${escapeHtml(label)}" onclick="ccWasteToggleMore(this)">${escapeHtml(label)}</button></td></tr>`;
+  return visible + hidden + toggleRow;
 }
 
 function card(label, value, sub) {
@@ -94,33 +110,27 @@ function renderModelTable(perModel) {
 
 function renderProjectTable(perProject) {
   if (perProject.length === 0) return '<p class="empty">프로젝트를 찾지 못했습니다.</p>';
-  const shown = perProject.slice(0, MAX_TABLE_ROWS);
-  const rows = shown
-    .map(
-      (p) => `<tr>
+  const rows = perProject.map(
+    (p) => `<tr>
       <td>${escapeHtml(p.project)}</td>
       <td class="num">${p.sessionCount}</td>
       <td class="num">${fmtTokens(p.inputTokens + p.outputTokens + p.cacheCreationTokens + p.cacheReadTokens)}</td>
       <td class="num">${fmtCost(p.cost)}</td>
     </tr>`
-    )
-    .join('');
-  const more = perProject.length > MAX_TABLE_ROWS ? `<p class="empty">+${perProject.length - MAX_TABLE_ROWS}개 프로젝트는 표시되지 않았습니다.</p>` : '';
+  );
   return `<table>
     <thead><tr><th>프로젝트</th><th class="num">세션 수</th><th class="num">총 토큰</th><th class="num">예상 비용</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>${more}`;
+    <tbody>${paginateRows(rows, 4)}</tbody>
+  </table>`;
 }
 
 function renderFindings(findings) {
   if (findings.length === 0) {
     return '<p class="empty">눈에 띄는 낭비 패턴이 없습니다 — 깔끔하네요.</p>';
   }
-  const shown = findings.slice(0, MAX_FINDINGS_SHOWN);
-  const rows = shown
-    .map((f) => {
-      const meta = FINDING_LABELS[f.type] || { label: f.type, hint: '' };
-      return `<tr>
+  const rows = findings.map((f) => {
+    const meta = FINDING_LABELS[f.type] || { label: f.type, hint: '' };
+    return `<tr>
         <td><span class="badge badge-${escapeHtml(f.type)}">${escapeHtml(meta.label)}</span></td>
         <td>${escapeHtml(f.project)}</td>
         <td class="mono">${escapeHtml(f.detail)}</td>
@@ -128,13 +138,11 @@ function renderFindings(findings) {
         <td class="num">${f.estCostSaved ? fmtCost(f.estCostSaved) : '—'}</td>
         <td class="dim">${escapeHtml(fmtDate(f.timestamp))}</td>
       </tr>`;
-    })
-    .join('');
-  const more = findings.length > MAX_FINDINGS_SHOWN ? `<p class="empty">+${findings.length - MAX_FINDINGS_SHOWN}건이 더 있습니다 (전체 목록은 --json 출력을 확인하세요).</p>` : '';
+  });
   return `<table>
     <thead><tr><th>패턴</th><th>프로젝트</th><th>상세</th><th class="num">~토큰</th><th class="num">~비용</th><th>시점</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>${more}`;
+    <tbody>${paginateRows(rows, 6)}</tbody>
+  </table>`;
 }
 
 function renderLegend() {
@@ -155,44 +163,40 @@ function renderSkillsAudit(findings, skillsAudit) {
     return `<p class="empty">설치된 스킬 ${skillsAudit.installedCount}개 모두 정상적으로 사용되고 있습니다.</p>`;
   }
 
-  const rows = skillFindings
-    .map((f) => {
-      const meta = FINDING_LABELS[f.type];
-      let actionCell = '<span class="dim">조치 안 함</span>';
-      if (f.fixed === true) actionCell = '<span class="badge badge-fixed">✓ 비활성화됨</span>';
-      else if (f.fixed === false) actionCell = `<span class="badge badge-fix-failed">해결 실패</span> <span class="dim">${escapeHtml(f.fixDetail || '')}</span>`;
-      return `<tr>
+  const rows = skillFindings.map((f) => {
+    const meta = FINDING_LABELS[f.type];
+    let actionCell = '<span class="dim">조치 안 함</span>';
+    if (f.fixed === true) actionCell = '<span class="badge badge-fixed">✓ 비활성화됨</span>';
+    else if (f.fixed === false) actionCell = `<span class="badge badge-fix-failed">해결 실패</span> <span class="dim">${escapeHtml(f.fixDetail || '')}</span>`;
+    return `<tr>
         <td class="mono">${escapeHtml(f.skillName)}</td>
         <td><span class="badge badge-${escapeHtml(f.type)}">${escapeHtml(meta.label)}</span></td>
         <td class="num">${f.calls}</td>
         <td class="num">~${fmtTokens(f.estTokens)}</td>
         <td>${actionCell}</td>
       </tr>`;
-    })
-    .join('');
+  });
 
   const table = `<table>
     <thead><tr><th>스킬</th><th>상태</th><th class="num">호출 횟수</th><th class="num">~예상 낭비 토큰</th><th>조치</th></tr></thead>
-    <tbody>${rows}</tbody>
+    <tbody>${paginateRows(rows, 5)}</tbody>
   </table>`;
 
   let fixSection;
   if (skillsAudit.fixApplied) {
     if (skillsAudit.fixActions.length > 0) {
-      const actionRows = skillsAudit.fixActions
-        .map(
-          (a) => `<tr>
+      const actionRows = skillsAudit.fixActions.map(
+        (a) => `<tr>
         <td class="mono">${escapeHtml(a.skill)}</td>
         <td class="mono">${escapeHtml(a.to)}</td>
         <td class="mono">mv "${escapeHtml(a.to)}" "${escapeHtml(a.from)}"</td>
       </tr>`
-        )
-        .join('');
+      );
       fixSection = `<h3>자동 해결 내역</h3>
       <p class="dim">위 스킬들을 <code>skills-disabled/</code>로 옮겨 비활성화했습니다 (삭제 아님). 되돌리려면 마지막 열의 명령을 실행하세요.</p>
       <table>
         <thead><tr><th>스킬</th><th>이동된 위치</th><th>복원 명령</th></tr></thead>
-        <tbody>${actionRows}</tbody>
+        <tbody>${paginateRows(actionRows, 3)}</tbody>
       </table>`;
     } else {
       fixSection = '<p class="empty"><code>--fix</code>가 지정되었지만 실제로 옮긴 항목은 없습니다 (이미 비활성화되어 있었을 수 있습니다).</p>';
@@ -287,6 +291,10 @@ export function renderReport(data) {
   .callout-cmd { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; overflow-x: auto; white-space: pre; }
   .copy-btn { flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 0 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
   .copy-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .more-cell { text-align: center; padding: 10px; }
+  .cc-more-toggle-row td { border-bottom: none; }
+  .more-btn { border: 1px solid var(--border); background: var(--surface); color: var(--accent); border-radius: 6px; padding: 6px 18px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .more-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
   footer { margin-top: 48px; color: var(--text-dim); font-size: 12px; border-top: 1px solid var(--border); padding-top: 16px; }
   .credit { margin-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .kofi-btn { display: inline-block; background: #ff5e5b; color: #fff; font-weight: 700; font-size: 11px; padding: 5px 12px; border-radius: 6px; text-decoration: none; }
@@ -361,6 +369,16 @@ export function renderReport(data) {
       btn.textContent = original;
       btn.disabled = false;
     }, 1500);
+  }
+
+  function ccWasteToggleMore(btn) {
+    var tbody = btn.closest('tbody');
+    var hiddenRows = tbody.querySelectorAll('.cc-more-row');
+    var isCollapsed = hiddenRows.length > 0 && hiddenRows[0].style.display === 'none';
+    for (var i = 0; i < hiddenRows.length; i++) {
+      hiddenRows[i].style.display = isCollapsed ? '' : 'none';
+    }
+    btn.textContent = isCollapsed ? '접기' : btn.getAttribute('data-label');
   }
 </script>
 </body>
