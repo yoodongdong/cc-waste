@@ -17,9 +17,17 @@
   "bugs": {
     "url": "https://github.com/yoodongdong/cc-waste/issues"
   },
-  "keywords": ["claude", "claude-code", "anthropic", "token", "usage", "cost", "audit"],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "token",
+    "usage",
+    "cost",
+    "audit"
+  ],
   "bin": {
-    "cc-waste": "./bin/cli.js"
+    "cc-waste": "bin/cli.js"
   },
   "files": [
     "bin",
