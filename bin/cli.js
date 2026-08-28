@@ -2,16 +2,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const { resolveClaudeHome, findSessionFiles } = await import(path.join(__dirname, '../src/find-logs.js'));
-const { parseSessionFile } = await import(path.join(__dirname, '../src/parse-session.js'));
-const { aggregateSessions } = await import(path.join(__dirname, '../src/aggregate.js'));
-const { renderReport } = await import(path.join(__dirname, '../src/html-report.js'));
-const { listInstalledSkills, auditSkills, applyFixes } = await import(path.join(__dirname, '../src/skills-audit.js'));
-const { getPricing } = await import(path.join(__dirname, '../src/pricing.js'));
+import { resolveClaudeHome, findSessionFiles } from '../src/find-logs.js';
+import { parseSessionFile } from '../src/parse-session.js';
+import { aggregateSessions } from '../src/aggregate.js';
+import { renderReport } from '../src/html-report.js';
+import { listInstalledSkills, auditSkills, applyFixes } from '../src/skills-audit.js';
+import { getPricing } from '../src/pricing.js';
 
 function parseArgs(argv) {
   const args = { out: 'cc-waste-report.html', dir: null, days: null, project: null, json: false, open: true, fix: false, help: false };
@@ -94,7 +92,7 @@ function printHelp() {
 }
 
 function openInBrowser(filePath) {
-  const url = 'file://' + filePath;
+  const url = pathToFileURL(filePath).href;
   const platform = process.platform;
   let cmd;
   let cmdArgs;
