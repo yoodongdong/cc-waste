@@ -8,7 +8,7 @@ import { resolveClaudeHome, findSessionFiles } from '../src/find-logs.js';
 import { parseSessionFile } from '../src/parse-session.js';
 import { aggregateSessions } from '../src/aggregate.js';
 import { renderReport } from '../src/html-report.js';
-import { listInstalledSkills, auditSkills, applyFixes } from '../src/skills-audit.js';
+import { listInstalledSkills, auditSkills, applyFixes, findHookProtectedSkillNames } from '../src/skills-audit.js';
 import { getPricing } from '../src/pricing.js';
 
 function parseArgs(argv) {
@@ -129,7 +129,8 @@ function printSummary(aggregate, outPath) {
   console.log(`캐시 적중률:        ${totals.cacheHitRate === null ? '—' : Math.round(totals.cacheHitRate * 100) + '%'}`);
   console.log(`낭비 추정:          ~${Math.round(waste.estTokens).toLocaleString('en-US')} 토큰 (~$${waste.estCost.toFixed(2)}), ${waste.findingCount}건`);
   if (skillsAudit && skillsAudit.installedCount > 0) {
-    console.log(`설치된 스킬:        ${skillsAudit.installedCount}개 (저활용 ${skillsAudit.flaggedCount}개)`);
+    const protectedNote = skillsAudit.protectedCount > 0 ? `, 그중 hook 연결로 보호됨 ${skillsAudit.protectedCount}개` : '';
+    console.log(`설치된 스킬:        ${skillsAudit.installedCount}개 (저활용 ${skillsAudit.flaggedCount}개${protectedNote})`);
     if (skillsAudit.fixApplied) {
       console.log(`자동 비활성화:      ${skillsAudit.fixActions.length}개 (skills-disabled/ 로 이동, 복원 명령은 리포트 참고)`);
     }
@@ -192,11 +193,16 @@ async function main() {
   const aggregate = aggregateSessions(sessions, claudeHome);
 
   const installedSkills = listInstalledSkills(claudeHome);
-  const skillFindings = auditSkills(installedSkills, aggregate.skillCallCounts, sessions.length);
+  const projectDirs = [...new Set(sessions.map((s) => s.cwd).filter(Boolean))];
+  const hookProtectedNames = findHookProtectedSkillNames(claudeHome, projectDirs, installedSkills);
+  const skillFindings = auditSkills(installedSkills, aggregate.skillCallCounts, sessions.length, hookProtectedNames);
+
+  const protectedCount = skillFindings.filter((f) => f.hookProtected).length;
 
   let fixActions = [];
   if (args.fix && skillFindings.length > 0) {
-    console.log(`저활용 스킬 ${skillFindings.length}개를 비활성화하는 중 ...`);
+    const note = protectedCount > 0 ? ` (Claude Code hook에 연결된 ${protectedCount}개는 건너뜀)` : '';
+    console.log(`저활용 스킬 ${skillFindings.length - protectedCount}개를 비활성화하는 중${note} ...`);
     fixActions = applyFixes(claudeHome, skillFindings);
   }
 
@@ -220,6 +226,7 @@ async function main() {
   aggregate.skillsAudit = {
     installedCount: installedSkills.length,
     flaggedCount: skillFindings.length,
+    protectedCount,
     fixApplied: args.fix,
     fixActions,
     fixCommand: buildFixCommand(args),

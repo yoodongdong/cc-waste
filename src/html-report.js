@@ -166,7 +166,8 @@ function renderSkillsAudit(findings, skillsAudit) {
   const rows = skillFindings.map((f) => {
     const meta = FINDING_LABELS[f.type];
     let actionCell = '<span class="dim">조치 안 함</span>';
-    if (f.fixed === true) actionCell = '<span class="badge badge-fixed">✓ 비활성화됨</span>';
+    if (f.hookProtected) actionCell = '<span class="badge badge-protected">보호됨 (hook 연결)</span> <span class="dim">자동 비활성화 대상에서 제외</span>';
+    else if (f.fixed === true) actionCell = '<span class="badge badge-fixed">✓ 비활성화됨</span>';
     else if (f.fixed === false) actionCell = `<span class="badge badge-fix-failed">해결 실패</span> <span class="dim">${escapeHtml(f.fixDetail || '')}</span>`;
     return `<tr>
         <td class="mono">${escapeHtml(f.skillName)}</td>
@@ -284,6 +285,7 @@ export function renderReport(data) {
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--warn); white-space: nowrap; }
   .badge-fixed { background: transparent; color: var(--good); border: 1px solid var(--good); }
   .badge-fix-failed { background: transparent; color: var(--warn); border: 1px solid var(--warn); }
+  .badge-protected { background: transparent; color: var(--text-dim); border: 1px solid var(--text-dim); }
   .legend { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; color: var(--text-dim); font-size: 12px; }
   .legend .badge { margin-right: 6px; }
   .callout { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 12px 16px; margin-top: 10px; font-size: 13px; }

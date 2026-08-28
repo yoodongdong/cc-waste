@@ -91,6 +91,15 @@ restore it any time with the exact `mv` command the report prints for it
 (also shown in the "설치된 스킬 감사" / "installed skills audit" section of
 the HTML). A skill that's still frequently used is never touched.
 
+**Skills wired into a Claude Code hook are never disabled, even by `--fix`.**
+Some skills ship a hook (e.g. a Stop hook) referenced by file path in
+`settings.json` — moving the skill's folder away breaks that hook ("No such
+file or directory") even though nothing was deleted. Before disabling
+anything, `cc-waste` scans `settings.json`/`settings.local.json` (global and,
+for every project seen in the scanned logs, per-project) for any string that
+references a flagged skill's folder, and marks a match "보호됨 (hook 연결)" —
+reported like any other finding, but `--fix` skips it and leaves it alone.
+
 ## How it works
 
 1. `src/find-logs.js` locates every `*.jsonl` transcript under
@@ -102,8 +111,9 @@ the HTML). A skill that's still frequently used is never touched.
    per-model totals plus a ranked findings list.
 4. `src/skills-audit.js` reads every installed skill's frontmatter under
    `<claude home>/skills/*/SKILL.md`, cross-references call counts collected
-   in step 2 (from `Skill` tool calls), flags unused/rarely-used ones, and —
-   only with `--fix` — moves them to `skills-disabled/`.
+   in step 2 (from `Skill` tool calls), flags unused/rarely-used ones, checks
+   each against `settings.json` hook references, and — only with `--fix` —
+   moves the unprotected ones to `skills-disabled/`.
 5. `src/html-report.js` renders it all into one static HTML file — no
    external scripts, stylesheets, or CDN dependencies, so it works fully
    offline.

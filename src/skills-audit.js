@@ -60,10 +60,66 @@ export function listInstalledSkills(claudeHome) {
   return results;
 }
 
+function readJsonSafe(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+// Claude Code settings.json can wire a hook's "command" straight to a file
+// inside a skill's own folder (e.g. a Stop hook shipped by the skill). Moving
+// that folder out from under skills/ silently breaks the hook — every future
+// turn fails with "No such file or directory" — even though nothing was
+// deleted. Recursively pulling every string out of settings.json/
+// settings.local.json (global + per project) and substring-matching against
+// each skill's path is schema-agnostic: it doesn't need to know the exact
+// shape of the hooks config, just that a reference exists somewhere in it.
+function collectStrings(value, out) {
+  if (typeof value === 'string') {
+    out.push(value);
+  } else if (Array.isArray(value)) {
+    for (const v of value) collectStrings(v, out);
+  } else if (value && typeof value === 'object') {
+    for (const key of Object.keys(value)) collectStrings(value[key], out);
+  }
+}
+
+export function findHookProtectedSkillNames(claudeHome, projectDirs, installedSkills) {
+  const settingsPaths = [path.join(claudeHome, 'settings.json'), path.join(claudeHome, 'settings.local.json')];
+  for (const dir of projectDirs) {
+    if (!dir) continue;
+    settingsPaths.push(path.join(dir, '.claude', 'settings.json'));
+    settingsPaths.push(path.join(dir, '.claude', 'settings.local.json'));
+  }
+
+  const strings = [];
+  for (const settingsPath of settingsPaths) {
+    if (!fs.existsSync(settingsPath)) continue;
+    const json = readJsonSafe(settingsPath);
+    if (json) collectStrings(json, strings);
+  }
+  // Normalize to forward slashes so this matches regardless of whether the
+  // settings file stores Windows backslash paths or POSIX-style ones.
+  const normalized = strings.map((s) => s.replace(/\\/g, '/'));
+
+  const protectedNames = new Set();
+  for (const skill of installedSkills) {
+    const marker = `/skills/${skill.dirName}/`;
+    if (normalized.some((s) => s.includes(marker))) {
+      protectedNames.add(skill.name);
+    }
+  }
+  return protectedNames;
+}
+
 // Pure — no filesystem writes. Returns waste-style findings for skills that
 // look unused or rarely used, given how many sessions we actually scanned.
-export function auditSkills(installedSkills, skillCallCounts, sessionCount) {
+// hookProtectedNames marks findings --fix must not act on (see applyFixes).
+export function auditSkills(installedSkills, skillCallCounts, sessionCount, hookProtectedNames) {
   const findings = [];
+  const protectedNames = hookProtectedNames || new Set();
 
   for (const skill of installedSkills) {
     const calls = skillCallCounts.get(skill.name) || 0;
@@ -86,6 +142,7 @@ export function auditSkills(installedSkills, skillCallCounts, sessionCount) {
       // Approximation: this skill's catalog entry rides along on every
       // scanned session regardless of whether it gets invoked.
       estTokens: skill.catalogTokens * sessionCount,
+      hookProtected: protectedNames.has(skill.name),
     });
   }
 
@@ -121,6 +178,12 @@ export function disableSkill(claudeHome, skillFinding) {
 export function applyFixes(claudeHome, skillFindings) {
   const fixActions = [];
   for (const finding of skillFindings) {
+    if (finding.hookProtected) {
+      finding.fixed = false;
+      finding.fixDetail = 'Claude Code hook이 이 스킬 폴더의 파일을 참조하고 있어 자동 비활성화를 건너뜀 (수동으로 확인 후 처리하세요).';
+      continue;
+    }
+
     const result = disableSkill(claudeHome, finding);
     if (result.ok) {
       finding.fixed = true;
